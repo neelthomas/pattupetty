@@ -35,38 +35,44 @@ function setNow(text) { $('now').textContent = text; }
 
 // ---------- player ----------
 
-window.onYouTubeIframeAPIReady = () => {
+let apiReady = false;
+window.onYouTubeIframeAPIReady = () => { apiReady = true; restore(); };
+
+// The player is created on first use: YouTube shows an error for a player with nothing to play.
+function ensurePlayer(extra, done) {
+  if (!apiReady) { say('Player is still loading. Try again in a moment.'); return; }
+  if (player) { done(); return; }
   player = new YT.Player('player', {
-    width: '100%', height: '100%',
-    playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+    width: '100%', height: '100%', ...extra,
+    playerVars: { playsinline: 1, rel: 0, modestbranding: 1, autoplay: 1, origin: location.origin, ...(extra.playerVars || {}) },
     events: {
-      onReady: () => { ready = true; restore(); },
+      onReady: () => { ready = true; done(); },
       onStateChange: (e) => {
         $('toggle').innerHTML = e.data === YT.PlayerState.PLAYING ? '&#10074;&#10074;' : '&#9654;';
-        if (e.data === YT.PlayerState.ENDED) next();
+        if (e.data === YT.PlayerState.ENDED && queue.length) next();
       },
-      onError: () => { say('That video cannot be played here. Skipping.'); next(); },
+      onError: () => { if (queue.length) { say('That video cannot be played here. Skipping.'); next(); } },
     },
   });
-};
+}
 
 function persist() { store.set('queue', { queue, index }); }
 
 function restore() {
   const saved = store.get('queue', null);
-  if (!saved || !saved.queue.length) return;
+  if (!saved || !saved.queue || !saved.queue.length) return;
   queue = saved.queue; index = Math.min(saved.index, queue.length - 1);
-  setNow(queue[index].title);
-  player.cueVideoById(queue[index].id);
+  setNow(queue[index].title + ' (tap play to resume)');
 }
 
 function playAt(i) {
-  if (!ready || !queue[i]) return;
+  if (!queue[i]) return;
   index = i;
   seen.add(queue[i].id);
-  player.loadVideoById(queue[i].id);
   setNow(queue[i].title);
   persist();
+  if (!player) ensurePlayer({ videoId: queue[i].id }, () => {});
+  else if (ready) player.loadVideoById(queue[i].id);
 }
 
 async function next() {
@@ -228,7 +234,7 @@ function wire() {
   $('prev').onclick = prev;
   $('next').onclick = next;
   $('toggle').onclick = () => {
-    if (!ready) return;
+    if (!ready) { if (queue[index]) playAt(index); return; }
     player.getPlayerState() === YT.PlayerState.PLAYING ? player.pauseVideo() : player.playVideo();
   };
   $('gear').onclick = () => { $('client-id').value = clientId(); $('settings').showModal(); };
@@ -252,12 +258,11 @@ function wire() {
   $('link-form').onsubmit = (e) => {
     e.preventDefault(); say('');
     const { list, v } = parseLink($('link').value);
-    if (!ready) return say('Player is still loading.');
     if (list) {
       queue = []; index = -1; refill = null;
-      player.loadPlaylist({ list, listType: 'playlist' });
-      player.setLoop(true);
       setNow('Playlist');
+      if (player) { player.loadPlaylist({ list, listType: 'playlist' }); player.setLoop(true); }
+      else ensurePlayer({ playerVars: { listType: 'playlist', list } }, () => player.setLoop(true));
     } else if (v) {
       startQueue([{ id: v, title: 'Pasted video' }]);
     } else { say('That does not look like a YouTube link.'); }

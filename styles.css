@@ -40,3 +40,5 @@ dialog input { width: 100%; margin-top: 4px; }
 menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; }
 .mini .tabs, .mini .tab, .mini .top-actions #popout, .mini #msg { display: none !important; }
 .mini .card { padding-top: 4px; }
+.placeholder { margin: 0; padding: 24px; color: var(--muted); text-align: center; }
+.player-wrap { display: flex; align-items: center; justify-content: center; }
