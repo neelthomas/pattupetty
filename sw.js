@@ -1,4 +1,4 @@
-const CACHE = 'pattupetty-v2';
+const CACHE = 'pattupetty-v3';
 const SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -6,13 +6,19 @@ self.addEventListener('install', (e) => {
   self.skipWaiting();
 });
 
+
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
-// Only the app shell is cached. YouTube and Google requests always go to the network.
+// Network first so updates show on a normal reload; the cache is the offline fallback.
+// YouTube and Google requests are never handled here.
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
-  e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
+  e.respondWith(
+    fetch(e.request)
+      .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
+      .catch(() => caches.match(e.request))
+  );
 });
