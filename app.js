@@ -51,7 +51,10 @@ function ensurePlayer(extra, done) {
         $('toggle').innerHTML = e.data === YT.PlayerState.PLAYING ? '&#10074;&#10074;' : '&#9654;';
         if (e.data === YT.PlayerState.ENDED && queue.length) next();
       },
-      onError: () => { if (queue.length) { say('That video cannot be played here. Skipping.'); next(); } },
+      onError: () => {
+        if (queue.length) { say('That video cannot be played here. Skipping.'); next(); }
+        else say('YouTube will not play this in an embedded player. Mixes (list=RD...) and some videos are blocked. Try a single video or a normal playlist link.');
+      },
     },
   });
 }
@@ -258,7 +261,8 @@ function wire() {
   $('link-form').onsubmit = (e) => {
     e.preventDefault(); say('');
     const { list, v } = parseLink($('link').value);
-    if (list) {
+    // Auto-generated Mixes (list=RD...) cannot be embedded, so play the video from the link instead.
+    if (list && !(list.startsWith('RD') && v)) {
       queue = []; index = -1; refill = null;
       setNow('Playlist');
       if (player) { player.loadPlaylist({ list, listType: 'playlist' }); player.setLoop(true); }
